@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AIK — RPE Session Report</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f4ef; min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const SHEET_URL = "https://script.google.com/macros/s/AKfycbzzTA_t7zz1hkeSTyspfcF-0yCrCqRRP2IVHLlCg-jUDjIvM2R910YGI9Qcq1h3VMmakw/exec";
+
+    const PLAYERS = [
+      "Abdihakim Ali","Adrian Helm","Ahmad Faqa","Amel Mujanic",
+      "Andreas Redkin","Aron Csongvai","Axel Kouame","Bersant Celina",
+      "Charlie Pavey","Dino Besirovic","Erik Flataker","Eskil Edh",
+      "Fredrik Nissen","Ibrahim Cisse","Johan Hove","Kalle Joelsson",
+      "Kevin Filling","Kristoffer Nordfeldt","Linus Jareteg","Lukas Bergquist",
+      "Mads Thychosen","Martin Ellingsen","Mohammed Ismael Shila","Norton Otterud",
+      "Sixten Gustafsson","Sotirios Papagiannopoulos","Stanley Wilson","Taha Ayari",
+      "Victor Andersson","Yannick Geiger","Zadok Yohanna"
+    ];
+
+    const BODY_PARTS = [
+      "Hamstring","Quadriceps","Calf","Groin / Adductor","Hip Flexor",
+      "Knee","Ankle","Achilles","Foot / Toe","Lower Back","Glute",
+      "Hip","Shin / Tibia","Shoulder","Neck","Thigh (General)"
+    ];
+
+    const RPE_LABELS = {
+      1:"Very Light",2:"Light",3:"Moderate",4:"Somewhat Hard",5:"Hard",
+      6:"Hard+",7:"Very Hard",8:"Very Hard+",9:"Near Maximal",10:"Maximal"
+    };
+    const PAIN_LABELS = {1:"Very Little",3:"Mild",5:"Moderate",7:"Strong",9:"Very Strong",10:"Terrible Pain"};
+
+    const C = {
+      navy:"#1a2744",yellow:"#f5c800",gold:"#b8952a",
+      white:"#ffffff",offWhite:"#f5f4ef",gray:"#6b7280",lightGray:"#e8e6df"
+    };
+
+    const scaleColor = v => v<=2?"#4ade80":v<=4?"#a3e635":v<=6?"#facc15":v<=8?"#fb923c":"#ef4444";
+    const today = () => new Date().toISOString().split("T")[0];
+
+    const st = {
+      wrap:{minHeight:"100vh",background:C.offWhite,display:"flex",flexDirection:"column",alignItems:"center",padding:"1.5rem 1rem"},
+      card:{background:C.white,borderRadius:"16px",padding:"1.75rem 1.5rem",width:"100%",maxWidth:"440px",boxShadow:"0 2px 12px rgba(26,39,68,0.10)",border:`1px solid ${C.lightGray}`},
+      title:{fontSize:"1.2rem",fontWeight:800,color:C.navy,marginBottom:"0.2rem"},
+      sub:{fontSize:"0.875rem",color:C.gray,marginBottom:"0.75rem",fontWeight:500},
+      label:{display:"block",fontSize:"0.78rem",fontWeight:700,color:C.navy,marginBottom:"0.35rem",textTransform:"uppercase",letterSpacing:"0.06em"},
+      input:{width:"100%",padding:"0.65rem 0.75rem",border:`1.5px solid ${C.lightGray}`,borderRadius:"8px",fontSize:"0.95rem",outline:"none",color:C.navy},
+      select:{width:"100%",padding:"0.65rem 0.75rem",border:`1.5px solid ${C.lightGray}`,borderRadius:"8px",fontSize:"0.95rem",background:C.white,outline:"none",color:C.navy},
+      textarea:{width:"100%",padding:"0.75rem",border:`1.5px solid ${C.lightGray}`,borderRadius:"8px",fontSize:"0.9rem",resize:"vertical",outline:"none",fontFamily:"inherit",color:C.navy},
+      scaleGrid:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"0.45rem",marginTop:"0.5rem"},
+      scaleBtn:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0.6rem 0.2rem",borderRadius:"10px",cursor:"pointer",minHeight:"58px",border:"2px solid",transition:"all 0.15s"},
+      chipGrid:{display:"flex",flexWrap:"wrap",gap:"0.45rem",marginTop:"0.5rem"},
+      chip:{padding:"0.4rem 0.85rem",borderRadius:"99px",fontSize:"0.8rem",cursor:"pointer",fontWeight:600,border:"2px solid",transition:"all 0.15s"},
+      bigChoice:{padding:"1.1rem",borderRadius:"12px",fontSize:"1rem",fontWeight:700,cursor:"pointer",border:"2px solid",transition:"all 0.15s"},
+      btnPrimary:{background:C.navy,color:C.yellow,border:`2px solid ${C.gold}`,borderRadius:"10px",padding:"0.85rem 1.25rem",fontSize:"0.95rem",fontWeight:800,cursor:"pointer",width:"100%"},
+      btnSecondary:{background:C.offWhite,color:C.navy,border:`1.5px solid ${C.lightGray}`,borderRadius:"10px",padding:"0.85rem 1rem",fontSize:"0.95rem",fontWeight:700,cursor:"pointer"},
+      summaryBox:{background:C.offWhite,borderRadius:"10px",padding:"0.75rem 1rem",marginBottom:"1.25rem",textAlign:"left",border:`1px solid ${C.lightGray}`}
+    };
+
+    function Header() {
+      return (
+        <div style={{width:"100%",maxWidth:"440px",marginBottom:"1.25rem",background:C.navy,borderRadius:"12px",padding:"0.9rem 1rem",border:`2px solid ${C.gold}`,textAlign:"center"}}>
+          <div style={{color:C.yellow,fontWeight:900,fontSize:"1.1rem",letterSpacing:"0.12em"}}>AIK</div>
+          <div style={{color:C.gold,fontSize:"0.63rem",letterSpacing:"0.16em",textTransform:"uppercase",marginTop:"3px"}}>RPE Session Report</div>
+        </div>
+      );
+    }
+
+    function Row({label,value}) {
+      return (
+        <div style={{display:"flex",justifyContent:"space-between",padding:"0.45rem 0",borderBottom:`1px solid ${C.lightGray}`,fontSize:"0.84rem"}}>
+          <span style={{color:C.gray}}>{label}</span>
+          <span style={{fontWeight:700,color:C.navy,textAlign:"right",maxWidth:"60%"}}>{value}</span>
+        </div>
+      );
+    }
+
+    function App() {
+      const [screen, setScreen] = React.useState(1);
+      const [form, setForm] = React.useState({player:"",date:today(),rpe:null,hasPain:null,painSide:null,bodyParts:[],painLevel:null,comments:""});
+      const [submitted, setSubmitted] = React.useState(false);
+      const [sendStatus, setSendStatus] = React.useState(null);
+
+      const set = (k,v) => setForm(f=>({...f,[k]:v}));
+      const togglePart = p => setForm(f=>({...f,bodyParts:f.bodyParts.includes(p)?f.bodyParts.filter(x=>x!==p):[...f.bodyParts,p]}));
+
+      const canProceed = () => {
+        if(screen===1) return form.player && form.date;
+        if(screen===2) return form.rpe!==null;
+        if(screen===3) return form.hasPain!==null;
+        if(screen===4) return form.painSide && form.bodyParts.length>0;
+        if(screen===5) return form.painLevel!==null;
+        return true;
+      };
+
+      const goNext = () => screen===3 && form.hasPain===false ? setScreen(6) : setScreen(s=>s+1);
+      const goBack = () => screen===6 && form.hasPain===false ? setScreen(3) : setScreen(s=>s-1);
+
+      const submit = () => {
+        setSubmitted(true);
+        setSendStatus("sending");
+        fetch(SHEET_URL, {
+          method:"POST",
+          mode:"no-cors",
+          headers:{"Content-Type":"text/plain"},
+          body:JSON.stringify({...form, timestamp:new Date().toLocaleString()})
+        });
+        setTimeout(()=>setSendStatus("ok"), 1500);
+      };
+
+      const reset = () => {
+        setForm({player:form.player,date:today(),rpe:null,hasPain:null,painSide:null,bodyParts:[],painLevel:null,comments:""});
+        setScreen(1); setSubmitted(false); setSendStatus(null);
+      };
+
+      const progress = Math.round((screen/7)*100);
+
+      if(submitted) return (
+        <div style={st.wrap}>
+          <Header/>
+          <div style={st.card}>
+            <div style={{textAlign:"center",padding:"0.5rem 0 1rem"}}>
+              <div style={{fontSize:"2.5rem",marginBottom:"0.5rem"}}>✅</div>
+              <h2 style={{...st.title,marginBottom:"0.2rem"}}>Submitted!</h2>
+              <p style={{color:C.gray,marginBottom:"1.25rem",fontSize:"0.88rem"}}>Thanks, {form.player.split(" ")[0]}. Your session has been logged.</p>
+              <div style={st.summaryBox}>
+                <Row label="Player" value={form.player}/>
+                <Row label="Date" value={form.date}/>
+                <Row label="RPE" value={`${form.rpe} — ${RPE_LABELS[form.rpe]}`}/>
+                <Row label="Pain / Discomfort" value={form.hasPain?"Yes":"No"}/>
+                {form.hasPain && <>
+                  <Row label="Side" value={form.painSide}/>
+                  <Row label="Body Part(s)" value={form.bodyParts.join(", ")}/>
+                  <Row label="Pain Level" value={`${form.painLevel}${PAIN_LABELS[form.painLevel]?" — "+PAIN_LABELS[form.painLevel]:""}`}/>
+                </>}
+                {form.comments && <Row label="Comments" value={form.comments}/>}
+              </div>
+              <button style={st.btnPrimary} onClick={reset}>New Submission</button>
+              <div style={{marginTop:"0.75rem",fontSize:"0.78rem",color:sendStatus==="ok"?"#16a34a":C.gray}}>
+                {sendStatus==="sending" && "⏳ Sending to Google Sheets…"}
+                {sendStatus==="ok" && "✅ Saved to Google Sheets!"}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      return (
+        <div style={st.wrap}>
+          <Header/>
+          <div style={st.card}>
+            <div style={{marginBottom:"1.25rem"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"0.4rem"}}>
+                <span style={{fontSize:"0.7rem",color:C.gold,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700}}>{screen>1?`Step ${screen} of 7`:"Session Report"}</span>
+                <span style={{fontSize:"0.7rem",color:C.gray}}>{progress}%</span>
+              </div>
+              <div style={{background:C.lightGray,borderRadius:"99px",height:"4px"}}>
+                <div style={{background:C.yellow,borderRadius:"99px",height:"4px",width:`${progress}%`,transition:"width 0.3s"}}/>
+              </div>
+            </div>
+
+            {screen===1 && <div>
+              <h2 style={st.title}>Select Your Name</h2>
+              <label style={st.label}>Player</label>
+              <select style={st.select} value={form.player} onChange={e=>set("player",e.target.value)}>
+                <option value="">Choose your name…</option>
+                {PLAYERS.map(p=><option key={p} value={p}>{p}</option>)}
+              </select>
+              <label style={{...st.label,marginTop:"1rem"}}>Date</label>
+              <input type="date" style={st.input} value={form.date} onChange={e=>set("date",e.target.value)}/>
+            </div>}
+
+            {screen===2 && <div>
+              <h2 style={st.title}>Session RPE</h2>
+              <p style={st.sub}>How hard was the session overall?</p>
+              <div style={st.scaleGrid}>
+                {[1,2,3,4,5,6,7,8,9,10].map(v=>(
+                  <button key={v} onClick={()=>set("rpe",v)} style={{...st.scaleBtn,background:form.rpe===v?scaleColor(v):C.offWhite,borderColor:form.rpe===v?C.navy:C.lightGray,transform:form.rpe===v?"scale(1.06)":"scale(1)"}}>
+                    <span style={{fontSize:"1.25rem",color:C.navy,fontWeight:form.rpe===v?800:400}}>{v}</span>
+                    <span style={{fontSize:"0.58rem",color:"#374151",marginTop:"2px",lineHeight:1.2}}>{RPE_LABELS[v]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>}
+
+            {screen===3 && <div>
+              <h2 style={st.title}>Pain or Discomfort?</h2>
+              <p style={st.sub}>Do you have any pain or discomfort after training?</p>
+              <div style={{display:"flex",gap:"1rem",marginTop:"1.25rem"}}>
+                {[{v:true,label:"Yes"},{v:false,label:"No"}].map(({v,label})=>(
+                  <button key={label} onClick={()=>set("hasPain",v)} style={{...st.bigChoice,flex:1,background:form.hasPain===v?C.navy:C.offWhite,color:form.hasPain===v?C.yellow:C.navy,borderColor:form.hasPain===v?C.navy:C.lightGray}}>{label}</button>
+                ))}
+              </div>
+            </div>}
+
+            {screen===4 && <div>
+              <h2 style={st.title}>Location of Pain</h2>
+              <p style={st.sub}>Which side?</p>
+              <div style={{display:"flex",gap:"0.6rem",marginBottom:"1.25rem"}}>
+                {["Left","Right","Both"].map(sv=>(
+                  <button key={sv} onClick={()=>set("painSide",sv)} style={{...st.bigChoice,flex:1,padding:"0.75rem",background:form.painSide===sv?C.navy:C.offWhite,color:form.painSide===sv?C.yellow:C.navy,borderColor:form.painSide===sv?C.navy:C.lightGray}}>{sv}</button>
+                ))}
+              </div>
+              <p style={st.sub}>Which body part(s)? <span style={{color:C.gray,fontWeight:400}}>(select all that apply)</span></p>
+              <div style={st.chipGrid}>
+                {BODY_PARTS.map(p=>{
+                  const sel=form.bodyParts.includes(p);
+                  return <button key={p} onClick={()=>togglePart(p)} style={{...st.chip,background:sel?C.navy:C.offWhite,color:sel?C.yellow:C.navy,borderColor:sel?C.navy:C.lightGray}}>{p}</button>;
+                })}
+              </div>
+            </div>}
+
+            {screen===5 && <div>
+              <h2 style={st.title}>Pain Intensity</h2>
+              <p style={st.sub}>How bad is the pain or discomfort?</p>
+              <div style={st.scaleGrid}>
+                {[1,2,3,4,5,6,7,8,9,10].map(v=>(
+                  <button key={v} onClick={()=>set("painLevel",v)} style={{...st.scaleBtn,background:form.painLevel===v?scaleColor(v):C.offWhite,borderColor:form.painLevel===v?C.navy:C.lightGray,transform:form.painLevel===v?"scale(1.06)":"scale(1)"}}>
+                    <span style={{fontSize:"1.25rem",color:C.navy,fontWeight:form.painLevel===v?800:400}}>{v}</span>
+                    <span style={{fontSize:"0.58rem",color:"#374151",marginTop:"2px",lineHeight:1.2}}>{PAIN_LABELS[v]||""}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:"0.5rem",fontSize:"0.72rem",color:C.gray}}>
+                <span>1 = Very Little</span><span>10 = Terrible Pain</span>
+              </div>
+            </div>}
+
+            {screen===6 && <div>
+              <h2 style={st.title}>Comments</h2>
+              <p style={st.sub}>Anything else to add? <span style={{color:C.gray,fontWeight:400}}>(optional)</span></p>
+              <textarea style={st.textarea} rows={5} placeholder="Write your comments here…" value={form.comments} onChange={e=>set("comments",e.target.value)}/>
+            </div>}
+
+            <div style={{display:"flex",gap:"0.75rem",marginTop:"1.5rem"}}>
+              {screen>1 && <button style={st.btnSecondary} onClick={goBack}>← Back</button>}
+              {screen<6 && <button style={{...st.btnPrimary,flex:1,opacity:canProceed()?1:0.4}} disabled={!canProceed()} onClick={goNext}>Continue →</button>}
+              {screen===6 && <button style={{...st.btnPrimary,flex:1}} onClick={submit}>Submit ✓</button>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
