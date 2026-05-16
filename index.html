@@ -23,6 +23,7 @@
 var useState = React.useState;
  
 // ── CONFIG ────────────────────────────────────────────────
+var PIN       = "1234";
 var SHEET_URL = "https://script.google.com/macros/s/AKfycbzzTA_t7zz1hkeSTyspfcF-0yCrCqRRP2IVHLlCg-jUDjIvM2R910YGI9Qcq1h3VMmakw/exec";
  
 var PLAYERS = [
@@ -53,7 +54,6 @@ var bg="#f0f3f8", white="#ffffff", border="#dce3ef", muted="#64748b", faint="#f4
 var red="#dc2626", amber="#d97706", green="#16a34a";
 var DISP = "'Oswald','Impact',sans-serif";
  
-// 10-point scale gradient, anchored to wellness's red/amber/green family
 function scaleCol(v){
   if(v<=2) return green;
   if(v<=4) return "#65a30d";
@@ -62,8 +62,9 @@ function scaleCol(v){
   return red;
 }
 function today(){return new Date().toISOString().split("T")[0];}
+function nowTime(){return new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});}
  
-// ── PRIMITIVES (matched 1:1 to wellness app) ──────────────
+// ── PRIMITIVES ────────────────────────────────────────────
 function ProgressBar(props){
   var pct=Math.round((props.current/props.total)*100);
   return (
@@ -149,7 +150,6 @@ function NavButtons(props){
   );
 }
  
-// 10-point scale grid (2 rows of 5) — same button styling as wellness ScaleRow
 function Scale10Grid(props){
   return (
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
@@ -197,8 +197,125 @@ function Header(){
   );
 }
  
-// ── APP ───────────────────────────────────────────────────
-function App(){
+// ── PIN SCREEN ────────────────────────────────────────────
+function PinScreen(props){
+  var ps=useState("");var p=ps[0],setP=ps[1];
+  var es=useState(false);var err=es[0],setErr=es[1];
+  function check(){if(p===PIN){props.onUnlock();}else{setErr(true);setP("");}}
+  return (
+    <div className="fade" style={{maxWidth:340,margin:"40px auto 0",padding:"0 16px",textAlign:"center"}}>
+      <div style={{background:navy,borderRadius:20,padding:"28px 24px",marginBottom:20,
+        boxShadow:"0 4px 20px rgba(15,31,61,0.18)"}}>
+        <div style={{fontFamily:DISP,fontSize:44,fontWeight:700,color:yellow,letterSpacing:4}}>AIK</div>
+        <div style={{color:"#7b93bc",fontSize:13,marginTop:4}}>Staff access only</div>
+      </div>
+      <input type="password" value={p}
+        onChange={function(e){setP(e.target.value);setErr(false);}}
+        onKeyDown={function(e){if(e.key==="Enter")check();}}
+        placeholder="Enter PIN"
+        style={{width:"100%",padding:16,textAlign:"center",fontSize:24,letterSpacing:10,
+          border:"2px solid "+(err?red:border),borderRadius:14,outline:"none",
+          marginBottom:10,background:white,color:navy}}/>
+      {err&&<p style={{color:red,fontSize:13,margin:"0 0 10px"}}>Incorrect PIN.</p>}
+      <button onClick={check} style={{width:"100%",padding:15,background:navy,color:yellow,
+        border:"none",borderRadius:14,fontFamily:DISP,fontSize:17,fontWeight:700,
+        letterSpacing:1,cursor:"pointer",marginTop:4}}>UNLOCK DASHBOARD</button>
+    </div>
+  );
+}
+ 
+// ── STAFF VIEW ────────────────────────────────────────────
+function StaffView(props){
+  var subs=props.subs;
+  var loading=props.loading;
+  var lastFetch=props.lastFetch;
+  var onRefresh=props.onRefresh;
+ 
+  var submittedNames=subs.map(function(s){return s.player;});
+  var pending=PLAYERS.filter(function(p){return submittedNames.indexOf(p)<0;});
+ 
+  var total=subs.length;
+  var avgRpe=total ? (subs.reduce(function(a,s){return a+(Number(s.rpe)||0);},0)/total).toFixed(1) : "—";
+  var highRpe=subs.filter(function(s){return Number(s.rpe)>=8;}).length;
+  var withPain=subs.filter(function(s){return s.hasPain;}).length;
+ 
+  return (
+    <div>
+      <div style={{background:navy,borderRadius:16,padding:"16px 18px",marginBottom:14,
+        display:"flex",justifyContent:"space-between",alignItems:"center",
+        boxShadow:"0 4px 16px rgba(15,31,61,0.15)"}}>
+        <div>
+          <div style={{fontFamily:DISP,fontSize:28,fontWeight:700,color:yellow,letterSpacing:2,lineHeight:1}}>AIK</div>
+          <div style={{fontSize:12,color:"#7b93bc",marginTop:3}}>
+            {new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}
+            {lastFetch&&<span style={{marginLeft:8,fontSize:11,color:"#3b5a8a"}}>{"· Updated "+lastFetch}</span>}
+          </div>
+        </div>
+        <button onClick={onRefresh} style={{padding:"9px 14px",background:"#1e3a6e",
+          color:loading?"#3b5a8a":yellow,border:"none",borderRadius:10,
+          fontFamily:DISP,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          {loading?"...":"⟳ Refresh"}
+        </button>
+      </div>
+ 
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
+        {[
+          ["Done",total+"/"+PLAYERS.length,total===PLAYERS.length?green:navy],
+          ["Avg RPE",avgRpe,Number(avgRpe)>=8?red:Number(avgRpe)>=6?amber:green],
+          ["High RPE",highRpe,highRpe?amber:green],
+          ["Pain",withPain,withPain?red:green]
+        ].map(function(item){
+          return (
+            <div key={item[0]} style={{background:white,borderRadius:14,padding:"13px 8px",
+              textAlign:"center",boxShadow:"0 1px 4px rgba(15,31,61,0.07)",borderTop:"3px solid "+item[2]}}>
+              <div style={{fontSize:20,fontWeight:900,color:item[2]}}>{item[1]}</div>
+              <div style={{fontSize:10,fontWeight:700,color:muted,textTransform:"uppercase",
+                letterSpacing:0.4,marginTop:2}}>{item[0]}</div>
+            </div>
+          );
+        })}
+      </div>
+ 
+      {total===0 ? (
+        <div style={{background:white,borderRadius:16,padding:48,textAlign:"center",
+          color:muted,boxShadow:"0 1px 4px rgba(15,31,61,0.07)"}}>
+          <div style={{fontSize:32,marginBottom:12}}>📋</div>
+          <div style={{fontWeight:700,color:navy,marginBottom:6}}>No submissions yet</div>
+          <div style={{fontSize:13}}>Hit ⟳ Refresh to pull the latest from Google Sheets.</div>
+        </div>
+      ) : pending.length===0 ? (
+        <div style={{background:green+"12",borderRadius:16,padding:16,
+          textAlign:"center",border:"1px solid "+green+"30"}}>
+          <div style={{fontSize:20,marginBottom:6}}>🎉</div>
+          <div style={{fontWeight:700,color:green,fontSize:14}}>All players have submitted!</div>
+        </div>
+      ) : (
+        <div style={{background:white,borderRadius:16,padding:18,boxShadow:"0 1px 4px rgba(15,31,61,0.07)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontFamily:DISP,fontSize:14,fontWeight:600,color:navy,letterSpacing:1}}>NOT YET SUBMITTED</div>
+            <div style={{background:amber+"15",color:amber,fontWeight:700,fontSize:12,
+              padding:"4px 10px",borderRadius:20,border:"1px solid "+amber+"30"}}>
+              {pending.length+" remaining"}
+            </div>
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {pending.map(function(p){
+              return (
+                <div key={p} style={{background:faint,border:"1px solid "+border,
+                  borderRadius:20,padding:"6px 12px",fontSize:13,color:muted,fontWeight:500}}>
+                  {p}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+ 
+// ── PLAYER FLOW ───────────────────────────────────────────
+function PlayerFlow(){
   var sc=useState(1); var screen=sc[0], setScreen=sc[1];
   var fs=useState({player:"",date:today(),rpe:null,hasPain:null,painSide:null,bodyParts:[],painLevel:null,comments:""});
   var form=fs[0], setForm=fs[1];
@@ -226,7 +343,6 @@ function App(){
     if(screen===5) return form.painLevel!==null;
     return true;
   }
- 
   function goNext(){
     if(screen===3 && form.hasPain===false){setScreen(6);return;}
     setScreen(function(s){return s+1;});
@@ -254,156 +370,210 @@ function App(){
     setScreen(1); setSubmitted(false); setSendStatus(null);
   }
  
-  // ── Submitted screen ────────────────────────────────────
   if(submitted){
     return (
-      <div style={{minHeight:"100vh",background:bg}}>
-        <div style={{maxWidth:480,margin:"0 auto",padding:"20px 14px 40px"}}>
-          <Header/>
-          <div className="fade" style={{textAlign:"center",padding:"32px 16px 24px"}}>
-            <div style={{width:88,height:88,borderRadius:"50%",background:green+"15",
-              border:"3px solid "+green,display:"flex",alignItems:"center",
-              justifyContent:"center",margin:"0 auto 20px",fontSize:42}}>✅</div>
-            <div style={{fontFamily:DISP,fontSize:32,fontWeight:700,color:navy,letterSpacing:1}}>SUBMITTED!</div>
-            <div style={{color:muted,fontSize:15,margin:"10px 16px 0"}}>
-              {"Thanks "+(form.player?form.player.split(" ")[0]:"")+", your session has been logged."}
-            </div>
+      <div>
+        <Header/>
+        <div className="fade" style={{textAlign:"center",padding:"32px 16px 24px"}}>
+          <div style={{width:88,height:88,borderRadius:"50%",background:green+"15",
+            border:"3px solid "+green,display:"flex",alignItems:"center",
+            justifyContent:"center",margin:"0 auto 20px",fontSize:42}}>✅</div>
+          <div style={{fontFamily:DISP,fontSize:32,fontWeight:700,color:navy,letterSpacing:1}}>SUBMITTED!</div>
+          <div style={{color:muted,fontSize:15,margin:"10px 16px 0"}}>
+            {"Thanks "+(form.player?form.player.split(" ")[0]:"")+", your session has been logged."}
           </div>
-          <Card>
-            <div style={{fontSize:11,fontWeight:700,color:muted,letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>Session summary</div>
-            <Row label="Player" value={form.player}/>
-            <Row label="Date" value={form.date}/>
-            <Row label="RPE" value={form.rpe+" — "+RPE_LABELS[form.rpe]}/>
-            <Row label="Pain / Discomfort" value={form.hasPain?"Yes":"No"}/>
-            {form.hasPain && <Row label="Side" value={form.painSide}/>}
-            {form.hasPain && <Row label="Body Part(s)" value={form.bodyParts.join(", ")}/>}
-            {form.hasPain && <Row label="Pain Level" value={form.painLevel+(PAIN_LABELS[form.painLevel]?" — "+PAIN_LABELS[form.painLevel]:"")}/>}
-            {form.comments && <Row label="Comments" value={form.comments}/>}
-            <div style={{marginTop:14,fontSize:12,color:sendStatus==="ok"?green:muted,textAlign:"center"}}>
-              {sendStatus==="sending" && "⏳ Sending to Google Sheets…"}
-              {sendStatus==="ok" && "✅ Saved to Google Sheets"}
-            </div>
-          </Card>
-          <button onClick={reset} style={{width:"100%",padding:"15px",background:navy,color:yellow,
-            border:"none",borderRadius:14,fontFamily:DISP,fontSize:16,fontWeight:700,
-            letterSpacing:1,cursor:"pointer"}}>NEW SUBMISSION →</button>
         </div>
+        <Card>
+          <div style={{fontSize:11,fontWeight:700,color:muted,letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>Session summary</div>
+          <Row label="Player" value={form.player}/>
+          <Row label="Date" value={form.date}/>
+          <Row label="RPE" value={form.rpe+" — "+RPE_LABELS[form.rpe]}/>
+          <Row label="Pain / Discomfort" value={form.hasPain?"Yes":"No"}/>
+          {form.hasPain && <Row label="Side" value={form.painSide}/>}
+          {form.hasPain && <Row label="Body Part(s)" value={form.bodyParts.join(", ")}/>}
+          {form.hasPain && <Row label="Pain Level" value={form.painLevel+(PAIN_LABELS[form.painLevel]?" — "+PAIN_LABELS[form.painLevel]:"")}/>}
+          {form.comments && <Row label="Comments" value={form.comments}/>}
+          <div style={{marginTop:14,fontSize:12,color:sendStatus==="ok"?green:muted,textAlign:"center"}}>
+            {sendStatus==="sending" && "⏳ Sending to Google Sheets…"}
+            {sendStatus==="ok" && "✅ Saved to Google Sheets"}
+          </div>
+        </Card>
+        <button onClick={reset} style={{width:"100%",padding:"15px",background:navy,color:yellow,
+          border:"none",borderRadius:14,fontFamily:DISP,fontSize:16,fontWeight:700,
+          letterSpacing:1,cursor:"pointer"}}>NEW SUBMISSION →</button>
       </div>
     );
   }
  
-  // ── Main flow ───────────────────────────────────────────
   var TOTAL=6;
   var proceed=canProceed();
+  return (
+    <div>
+      <Header/>
+      {screen>1 && (
+        <div style={{background:white,borderRadius:16,padding:"16px 18px",marginBottom:16,
+          boxShadow:"0 1px 6px rgba(15,31,61,0.07)"}}>
+          <ProgressBar current={screen} total={TOTAL}/>
+        </div>
+      )}
+      <Card>
+        {screen===1 && (
+          <div>
+            <div style={{fontSize:12,color:muted,fontWeight:700,letterSpacing:0.5,
+              textTransform:"uppercase",marginBottom:10}}>Select your name</div>
+            <select value={form.player} onChange={function(e){set("player",e.target.value);}}
+              style={{width:"100%",padding:"15px 16px",borderRadius:12,fontSize:16,
+                border:"1.5px solid "+(form.player?navy:border),
+                background:faint,color:form.player?navy:muted,outline:"none",marginBottom:16}}>
+              <option value="">Choose your name...</option>
+              {PLAYERS.map(function(p){return <option key={p} value={p}>{p}</option>;})}
+            </select>
+            <div style={{fontSize:12,color:muted,fontWeight:700,letterSpacing:0.5,
+              textTransform:"uppercase",marginBottom:10}}>Date</div>
+            <input type="date" value={form.date} onChange={function(e){set("date",e.target.value);}}
+              style={{width:"100%",padding:"15px 16px",borderRadius:12,fontSize:15,
+                border:"1.5px solid "+border,background:faint,color:navy,outline:"none"}}/>
+            <button onClick={goNext} disabled={!proceed} style={{
+              width:"100%",padding:"16px",borderRadius:14,border:"none",marginTop:20,
+              background:proceed?navy:faint,color:proceed?yellow:muted,
+              fontFamily:DISP,fontSize:18,fontWeight:700,letterSpacing:1,
+              cursor:proceed?"pointer":"default"
+            }}>START REPORT →</button>
+          </div>
+        )}
+ 
+        {screen===2 && (
+          <div>
+            <QTitle sub="Step 2 of 6" title="How hard was the session overall?"/>
+            <Scale10Grid value={form.rpe} onChange={function(v){set("rpe",v);}} labels={RPE_LABELS}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:11,color:muted}}>
+              <span>1 = Very Light</span><span>10 = Maximal</span>
+            </div>
+            <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
+          </div>
+        )}
+ 
+        {screen===3 && (
+          <div>
+            <QTitle sub="Step 3 of 6" title="Do you have any pain or discomfort?"/>
+            <ChoiceRow value={form.hasPain===true?"yes":form.hasPain===false?"no":null}
+              onChange={function(v){set("hasPain",v==="yes");}}
+              options={[["yes","⚠️ Yes",red],["no","✅ No",green]]}/>
+            <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
+          </div>
+        )}
+ 
+        {screen===4 && (
+          <div>
+            <QTitle sub="Step 4 of 6" title="Location of pain"/>
+            <Lbl>Side affected</Lbl>
+            <div style={{display:"flex",gap:8,marginBottom:18}}>
+              {["Left","Right","Both"].map(function(sv){
+                var sel=form.painSide===sv;
+                return (
+                  <button key={sv} onClick={function(){set("painSide",sv);}} style={{
+                    flex:1,padding:"14px 4px",borderRadius:12,
+                    border:"2px solid "+(sel?red:border),
+                    background:sel?red+"12":faint,color:sel?red:muted,
+                    fontWeight:sel?700:500,fontSize:14,cursor:"pointer",transition:"all .12s"
+                  }}>{sv}</button>
+                );
+              })}
+            </div>
+            <Lbl>Body part(s) — select all that apply</Lbl>
+            <div>{BODY_PARTS.map(function(p){
+              return <Chip key={p} label={p} color={red}
+                selected={form.bodyParts.indexOf(p)>=0}
+                onClick={function(){togglePart(p);}}/>;
+            })}</div>
+            <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
+          </div>
+        )}
+ 
+        {screen===5 && (
+          <div>
+            <QTitle sub="Step 5 of 6" title="How bad is the pain or discomfort?"/>
+            <Scale10Grid value={form.painLevel} onChange={function(v){set("painLevel",v);}} labels={PAIN_LABELS}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:11,color:muted}}>
+              <span>1 = Very Little</span><span>10 = Terrible Pain</span>
+            </div>
+            <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
+          </div>
+        )}
+ 
+        {screen===6 && (
+          <div>
+            <QTitle sub="Step 6 of 6" title="Anything else to add?"/>
+            <div style={{fontSize:13,color:muted,marginBottom:12}}>Optional — any extra context about the session.</div>
+            <textarea value={form.comments} onChange={function(e){set("comments",e.target.value);}}
+              placeholder="Optional — write your comments..."
+              style={{width:"100%",padding:"14px",borderRadius:12,
+                border:"1.5px solid "+border,fontSize:14,minHeight:110,
+                resize:"none",color:navy,background:faint,outline:"none"}}/>
+            <NavButtons onBack={goBack} onNext={submit} nextLabel="SUBMIT ✓"/>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+ 
+// ── APP ───────────────────────────────────────────────────
+function App(){
+  var vs=useState("player"); var view=vs[0], setView=vs[1];
+  var us=useState(false); var unlocked=us[0], setUnlocked=us[1];
+  var subS=useState([]); var subs=subS[0], setSubs=subS[1];
+  var loadingS=useState(false); var loading=loadingS[0], setLoading=loadingS[1];
+  var lastFetchS=useState(null); var lastFetch=lastFetchS[0], setLastFetch=lastFetchS[1];
+ 
+  function fetchFromSheet(){
+    if(!SHEET_URL) return;
+    setLoading(true);
+    fetch(SHEET_URL,{method:"GET",redirect:"follow"})
+      .then(function(r){
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        return r.text();
+      })
+      .then(function(text){
+        var rows;
+        try { rows = JSON.parse(text); } catch(e) { rows = []; }
+        setSubs(Array.isArray(rows) ? rows : []);
+        setLastFetch(nowTime());
+        setLoading(false);
+      })
+      .catch(function(err){
+        console.error("Fetch error:",err);
+        setLoading(false);
+      });
+  }
  
   return (
     <div style={{minHeight:"100vh",background:bg}}>
+      <nav style={{background:navy,borderBottom:"2px solid "+gold,
+        padding:"12px 18px",display:"flex",justifyContent:"space-between",
+        alignItems:"center",position:"sticky",top:0,zIndex:10}}>
+        <span style={{fontFamily:DISP,fontWeight:700,fontSize:20,color:yellow,letterSpacing:2}}>AIK</span>
+        <div style={{display:"flex",gap:6}}>
+          {[["player","Check-in"],["staff","Staff 🔒"]].map(function(item){
+            return (
+              <button key={item[0]} onClick={function(){setView(item[0]);}} style={{
+                padding:"7px 14px",borderRadius:8,
+                border:"1.5px solid "+(view===item[0]?yellow:"#1e3a6e"),
+                background:view===item[0]?yellow:"transparent",
+                color:view===item[0]?navy:"#7b93bc",
+                fontWeight:700,cursor:"pointer",fontSize:13
+              }}>{item[1]}</button>
+            );
+          })}
+        </div>
+      </nav>
       <div style={{maxWidth:480,margin:"0 auto",padding:"20px 14px 40px"}}>
-        <Header/>
-        {screen>1 && (
-          <div style={{background:white,borderRadius:16,padding:"16px 18px",marginBottom:16,
-            boxShadow:"0 1px 6px rgba(15,31,61,0.07)"}}>
-            <ProgressBar current={screen} total={TOTAL}/>
-          </div>
-        )}
-        <Card>
-          {screen===1 && (
-            <div>
-              <div style={{fontSize:12,color:muted,fontWeight:700,letterSpacing:0.5,
-                textTransform:"uppercase",marginBottom:10}}>Select your name</div>
-              <select value={form.player} onChange={function(e){set("player",e.target.value);}}
-                style={{width:"100%",padding:"15px 16px",borderRadius:12,fontSize:16,
-                  border:"1.5px solid "+(form.player?navy:border),
-                  background:faint,color:form.player?navy:muted,outline:"none",marginBottom:16}}>
-                <option value="">Choose your name...</option>
-                {PLAYERS.map(function(p){return <option key={p} value={p}>{p}</option>;})}
-              </select>
-              <div style={{fontSize:12,color:muted,fontWeight:700,letterSpacing:0.5,
-                textTransform:"uppercase",marginBottom:10}}>Date</div>
-              <input type="date" value={form.date} onChange={function(e){set("date",e.target.value);}}
-                style={{width:"100%",padding:"15px 16px",borderRadius:12,fontSize:15,
-                  border:"1.5px solid "+border,background:faint,color:navy,outline:"none"}}/>
-              <button onClick={goNext} disabled={!proceed} style={{
-                width:"100%",padding:"16px",borderRadius:14,border:"none",marginTop:20,
-                background:proceed?navy:faint,color:proceed?yellow:muted,
-                fontFamily:DISP,fontSize:18,fontWeight:700,letterSpacing:1,
-                cursor:proceed?"pointer":"default"
-              }}>START REPORT →</button>
-            </div>
-          )}
- 
-          {screen===2 && (
-            <div>
-              <QTitle sub="Step 2 of 6" title="How hard was the session overall?"/>
-              <Scale10Grid value={form.rpe} onChange={function(v){set("rpe",v);}} labels={RPE_LABELS}/>
-              <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:11,color:muted}}>
-                <span>1 = Very Light</span><span>10 = Maximal</span>
-              </div>
-              <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
-            </div>
-          )}
- 
-          {screen===3 && (
-            <div>
-              <QTitle sub="Step 3 of 6" title="Do you have any pain or discomfort?"/>
-              <ChoiceRow value={form.hasPain===true?"yes":form.hasPain===false?"no":null}
-                onChange={function(v){set("hasPain",v==="yes");}}
-                options={[["yes","⚠️ Yes",red],["no","✅ No",green]]}/>
-              <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
-            </div>
-          )}
- 
-          {screen===4 && (
-            <div>
-              <QTitle sub="Step 4 of 6" title="Location of pain"/>
-              <Lbl>Side affected</Lbl>
-              <div style={{display:"flex",gap:8,marginBottom:18}}>
-                {["Left","Right","Both"].map(function(sv){
-                  var sel=form.painSide===sv;
-                  return (
-                    <button key={sv} onClick={function(){set("painSide",sv);}} style={{
-                      flex:1,padding:"14px 4px",borderRadius:12,
-                      border:"2px solid "+(sel?red:border),
-                      background:sel?red+"12":faint,color:sel?red:muted,
-                      fontWeight:sel?700:500,fontSize:14,cursor:"pointer",transition:"all .12s"
-                    }}>{sv}</button>
-                  );
-                })}
-              </div>
-              <Lbl>Body part(s) — select all that apply</Lbl>
-              <div>{BODY_PARTS.map(function(p){
-                return <Chip key={p} label={p} color={red}
-                  selected={form.bodyParts.indexOf(p)>=0}
-                  onClick={function(){togglePart(p);}}/>;
-              })}</div>
-              <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
-            </div>
-          )}
- 
-          {screen===5 && (
-            <div>
-              <QTitle sub="Step 5 of 6" title="How bad is the pain or discomfort?"/>
-              <Scale10Grid value={form.painLevel} onChange={function(v){set("painLevel",v);}} labels={PAIN_LABELS}/>
-              <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:11,color:muted}}>
-                <span>1 = Very Little</span><span>10 = Terrible Pain</span>
-              </div>
-              <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
-            </div>
-          )}
- 
-          {screen===6 && (
-            <div>
-              <QTitle sub="Step 6 of 6" title="Anything else to add?"/>
-              <div style={{fontSize:13,color:muted,marginBottom:12}}>Optional — any extra context about the session.</div>
-              <textarea value={form.comments} onChange={function(e){set("comments",e.target.value);}}
-                placeholder="Optional — write your comments..."
-                style={{width:"100%",padding:"14px",borderRadius:12,
-                  border:"1.5px solid "+border,fontSize:14,minHeight:110,
-                  resize:"none",color:navy,background:faint,outline:"none"}}/>
-              <NavButtons onBack={goBack} onNext={submit} nextLabel="SUBMIT ✓"/>
-            </div>
-          )}
-        </Card>
+        {view==="player"
+          ? <PlayerFlow/>
+          : (unlocked
+              ? <StaffView subs={subs} loading={loading} lastFetch={lastFetch} onRefresh={fetchFromSheet}/>
+              : <PinScreen onUnlock={function(){setUnlocked(true);fetchFromSheet();}}/>)
+        }
       </div>
     </div>
   );
