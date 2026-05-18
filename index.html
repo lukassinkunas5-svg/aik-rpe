@@ -21,11 +21,11 @@
 <div id="root"></div>
 <script type="text/babel">
 var useState = React.useState;
- 
+
 // ── CONFIG ────────────────────────────────────────────────
 var PIN       = "1234";
 var SHEET_URL = "https://script.google.com/macros/s/AKfycbzzTA_t7zz1hkeSTyspfcF-0yCrCqRRP2IVHLlCg-jUDjIvM2R910YGI9Qcq1h3VMmakw/exec";
- 
+
 var PLAYERS = [
   "Abdihakim Ali","Adrian Helm","Ahmad Faqa","Amel Mujanic","Andreas Redkin",
   "Aron Csongvai","Axel Kouame","Bersant Celina","Charlie Pavey","Dino Besirovic",
@@ -35,25 +35,25 @@ var PLAYERS = [
   "Sixten Gustafsson","Sotirios Papagiannopoulos","Stanley Wilson","Taha Ayari",
   "Victor Andersson","Yannick Geiger","Zadok Yohanna"
 ];
- 
+
 var BODY_PARTS = [
   "Hamstring","Quadriceps","Calf","Groin / Adductor","Hip Flexor",
   "Knee","Ankle","Achilles","Foot / Toe","Lower Back","Glute",
   "Hip","Shin / Tibia","Shoulder","Neck","Thigh (General)"
 ];
- 
+
 var RPE_LABELS = {
   1:"Very Light",2:"Light",3:"Moderate",4:"Somewhat Hard",5:"Hard",
   6:"Hard+",7:"Very Hard",8:"Very Hard+",9:"Near Maximal",10:"Maximal"
 };
 var PAIN_LABELS = {1:"Very Little",3:"Mild",5:"Moderate",7:"Strong",9:"Very Strong",10:"Terrible Pain"};
- 
+
 // ── COLOURS (identical to wellness app) ───────────────────
 var navy="#0f1f3d", yellow="#FFE135", gold="#8B7340", goldLight="#c9a84c";
 var bg="#f0f3f8", white="#ffffff", border="#dce3ef", muted="#64748b", faint="#f4f6fb";
 var red="#dc2626", amber="#d97706", green="#16a34a";
 var DISP = "'Oswald','Impact',sans-serif";
- 
+
 function scaleCol(v){
   if(v<=2) return green;
   if(v<=4) return "#65a30d";
@@ -61,9 +61,29 @@ function scaleCol(v){
   if(v<=8) return "#ea580c";
   return red;
 }
-function today(){return new Date().toISOString().split("T")[0];}
+function today(){
+  var d=new Date();
+  var yyyy=d.getFullYear();
+  var mm=String(d.getMonth()+1).padStart(2,"0");
+  var dd=String(d.getDate()).padStart(2,"0");
+  return yyyy+"-"+mm+"-"+dd;
+}
 function nowTime(){return new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});}
- 
+function shiftDate(dateStr, delta){
+  var parts=dateStr.split("-").map(Number);
+  var d=new Date(parts[0], parts[1]-1, parts[2]);
+  d.setDate(d.getDate()+delta);
+  var yyyy=d.getFullYear();
+  var mm=String(d.getMonth()+1).padStart(2,"0");
+  var dd=String(d.getDate()).padStart(2,"0");
+  return yyyy+"-"+mm+"-"+dd;
+}
+function formatNiceDate(dateStr){
+  var parts=dateStr.split("-").map(Number);
+  var d=new Date(parts[0], parts[1]-1, parts[2]);
+  return d.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
+}
+
 // ── PRIMITIVES ────────────────────────────────────────────
 function ProgressBar(props){
   var pct=Math.round((props.current/props.total)*100);
@@ -79,7 +99,7 @@ function ProgressBar(props){
     </div>
   );
 }
- 
+
 function Card(props){
   return (
     <div className="fade" style={{background:white,borderRadius:20,padding:"26px 20px",
@@ -88,7 +108,7 @@ function Card(props){
     </div>
   );
 }
- 
+
 function QTitle(props){
   return (
     <div style={{marginBottom:22}}>
@@ -97,11 +117,11 @@ function QTitle(props){
     </div>
   );
 }
- 
+
 function Lbl(props){
   return <div style={{fontSize:11,fontWeight:700,color:muted,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>{props.children}</div>;
 }
- 
+
 function Chip(props){
   var sel=props.selected,col=props.color||navy;
   return (
@@ -113,7 +133,7 @@ function Chip(props){
     }}>{props.label}</button>
   );
 }
- 
+
 function ChoiceRow(props){
   return (
     <div style={{display:"flex",gap:10}}>
@@ -131,7 +151,7 @@ function ChoiceRow(props){
     </div>
   );
 }
- 
+
 function NavButtons(props){
   return (
     <div style={{display:"flex",gap:10,marginTop:24}}>
@@ -149,7 +169,7 @@ function NavButtons(props){
     </div>
   );
 }
- 
+
 function Scale10Grid(props){
   return (
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
@@ -173,7 +193,7 @@ function Scale10Grid(props){
     </div>
   );
 }
- 
+
 function Row(props){
   return (
     <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",
@@ -183,7 +203,7 @@ function Row(props){
     </div>
   );
 }
- 
+
 function Header(){
   return (
     <div style={{textAlign:"center",marginBottom:22,padding:"24px 20px",
@@ -196,7 +216,7 @@ function Header(){
     </div>
   );
 }
- 
+
 // ── PIN SCREEN ────────────────────────────────────────────
 function PinScreen(props){
   var ps=useState("");var p=ps[0],setP=ps[1];
@@ -223,41 +243,71 @@ function PinScreen(props){
     </div>
   );
 }
- 
+
 // ── STAFF VIEW ────────────────────────────────────────────
 function StaffView(props){
   var subs=props.subs;
   var loading=props.loading;
   var lastFetch=props.lastFetch;
   var onRefresh=props.onRefresh;
- 
+  var selectedDate=props.selectedDate;
+  var onDateChange=props.onDateChange;
+
+  var todayStr=today();
+  var isToday=selectedDate===todayStr;
+  var displayDate=formatNiceDate(selectedDate);
+
   var submittedNames=subs.map(function(s){return s.player;});
   var pending=PLAYERS.filter(function(p){return submittedNames.indexOf(p)<0;});
- 
+
   var total=subs.length;
   var avgRpe=total ? (subs.reduce(function(a,s){return a+(Number(s.rpe)||0);},0)/total).toFixed(1) : "—";
   var highRpe=subs.filter(function(s){return Number(s.rpe)>=8;}).length;
   var withPain=subs.filter(function(s){return s.hasPain;}).length;
- 
+
   return (
     <div>
-      <div style={{background:navy,borderRadius:16,padding:"16px 18px",marginBottom:14,
+      <div style={{background:navy,borderRadius:16,padding:"16px 18px",marginBottom:12,
         display:"flex",justifyContent:"space-between",alignItems:"center",
         boxShadow:"0 4px 16px rgba(15,31,61,0.15)"}}>
         <div>
           <div style={{fontFamily:DISP,fontSize:28,fontWeight:700,color:yellow,letterSpacing:2,lineHeight:1}}>AIK</div>
           <div style={{fontSize:12,color:"#7b93bc",marginTop:3}}>
-            {new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}
+            {displayDate}
             {lastFetch&&<span style={{marginLeft:8,fontSize:11,color:"#3b5a8a"}}>{"· Updated "+lastFetch}</span>}
           </div>
         </div>
-        <button onClick={onRefresh} style={{padding:"9px 14px",background:"#1e3a6e",
+        <button onClick={function(){onRefresh();}} style={{padding:"9px 14px",background:"#1e3a6e",
           color:loading?"#3b5a8a":yellow,border:"none",borderRadius:10,
           fontFamily:DISP,fontSize:13,fontWeight:700,cursor:"pointer"}}>
           {loading?"...":"⟳ Refresh"}
         </button>
       </div>
- 
+
+      {/* Date navigation */}
+      <div style={{background:white,borderRadius:14,padding:"10px 12px",marginBottom:14,
+        boxShadow:"0 1px 4px rgba(15,31,61,0.07)",display:"flex",gap:8,alignItems:"center"}}>
+        <button onClick={function(){onDateChange(shiftDate(selectedDate,-1));}}
+          style={{padding:"8px 12px",borderRadius:8,border:"1.5px solid "+border,
+            background:faint,color:navy,fontSize:14,fontWeight:700,cursor:"pointer"}}>←</button>
+        <input type="date" value={selectedDate} max={todayStr}
+          onChange={function(e){if(e.target.value)onDateChange(e.target.value);}}
+          style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1.5px solid "+border,
+            background:faint,color:navy,fontSize:14,fontWeight:600,outline:"none",textAlign:"center"}}/>
+        <button onClick={function(){onDateChange(shiftDate(selectedDate,1));}}
+          disabled={isToday}
+          style={{padding:"8px 12px",borderRadius:8,
+            border:"1.5px solid "+(isToday?border:border),
+            background:isToday?faint:faint,color:isToday?border:navy,
+            fontSize:14,fontWeight:700,cursor:isToday?"default":"pointer",opacity:isToday?0.4:1}}>→</button>
+        {!isToday&&(
+          <button onClick={function(){onDateChange(todayStr);}}
+            style={{padding:"8px 12px",borderRadius:8,border:"none",
+              background:navy,color:yellow,fontFamily:DISP,fontSize:12,fontWeight:700,
+              letterSpacing:0.5,cursor:"pointer"}}>TODAY</button>
+        )}
+      </div>
+
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
         {[
           ["Done",total+"/"+PLAYERS.length,total===PLAYERS.length?green:navy],
@@ -275,13 +325,17 @@ function StaffView(props){
           );
         })}
       </div>
- 
+
       {total===0 ? (
         <div style={{background:white,borderRadius:16,padding:48,textAlign:"center",
           color:muted,boxShadow:"0 1px 4px rgba(15,31,61,0.07)"}}>
           <div style={{fontSize:32,marginBottom:12}}>📋</div>
-          <div style={{fontWeight:700,color:navy,marginBottom:6}}>No submissions yet</div>
-          <div style={{fontSize:13}}>Hit ⟳ Refresh to pull the latest from Google Sheets.</div>
+          <div style={{fontWeight:700,color:navy,marginBottom:6}}>
+            {isToday?"No submissions yet today":"No submissions on "+displayDate}
+          </div>
+          <div style={{fontSize:13}}>
+            {isToday?"Hit ⟳ Refresh to pull the latest from Google Sheets.":"Try another date using the picker above."}
+          </div>
         </div>
       ) : pending.length===0 ? (
         <div style={{background:green+"12",borderRadius:16,padding:16,
@@ -313,7 +367,7 @@ function StaffView(props){
     </div>
   );
 }
- 
+
 // ── PLAYER FLOW ───────────────────────────────────────────
 function PlayerFlow(){
   var sc=useState(1); var screen=sc[0], setScreen=sc[1];
@@ -321,7 +375,7 @@ function PlayerFlow(){
   var form=fs[0], setForm=fs[1];
   var ss=useState(false); var submitted=ss[0], setSubmitted=ss[1];
   var sts=useState(null); var sendStatus=sts[0], setSendStatus=sts[1];
- 
+
   function set(k,v){
     setForm(function(prev){
       var n={};Object.keys(prev).forEach(function(key){n[key]=prev[key];});n[k]=v;return n;
@@ -334,7 +388,7 @@ function PlayerFlow(){
       var n={};Object.keys(prev).forEach(function(key){n[key]=prev[key];});n.bodyParts=nxt;return n;
     });
   }
- 
+
   function canProceed(){
     if(screen===1) return !!(form.player && form.date);
     if(screen===2) return form.rpe!==null;
@@ -351,7 +405,7 @@ function PlayerFlow(){
     if(screen===6 && form.hasPain===false){setScreen(3);return;}
     setScreen(function(s){return s-1;});
   }
- 
+
   function submit(){
     setSubmitted(true);
     setSendStatus("sending");
@@ -364,12 +418,12 @@ function PlayerFlow(){
     }).catch(function(){});
     setTimeout(function(){setSendStatus("ok");}, 1500);
   }
- 
+
   function reset(){
     setForm({player:form.player,date:today(),rpe:null,hasPain:null,painSide:null,bodyParts:[],painLevel:null,comments:""});
     setScreen(1); setSubmitted(false); setSendStatus(null);
   }
- 
+
   if(submitted){
     return (
       <div>
@@ -404,7 +458,7 @@ function PlayerFlow(){
       </div>
     );
   }
- 
+
   var TOTAL=6;
   var proceed=canProceed();
   return (
@@ -441,7 +495,7 @@ function PlayerFlow(){
             }}>START REPORT →</button>
           </div>
         )}
- 
+
         {screen===2 && (
           <div>
             <QTitle sub="Step 2 of 6" title="How hard was the session overall?"/>
@@ -452,7 +506,7 @@ function PlayerFlow(){
             <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
           </div>
         )}
- 
+
         {screen===3 && (
           <div>
             <QTitle sub="Step 3 of 6" title="Do you have any pain or discomfort?"/>
@@ -462,7 +516,7 @@ function PlayerFlow(){
             <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
           </div>
         )}
- 
+
         {screen===4 && (
           <div>
             <QTitle sub="Step 4 of 6" title="Location of pain"/>
@@ -489,7 +543,7 @@ function PlayerFlow(){
             <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
           </div>
         )}
- 
+
         {screen===5 && (
           <div>
             <QTitle sub="Step 5 of 6" title="How bad is the pain or discomfort?"/>
@@ -500,7 +554,7 @@ function PlayerFlow(){
             <NavButtons onBack={goBack} onNext={goNext} disabled={!proceed}/>
           </div>
         )}
- 
+
         {screen===6 && (
           <div>
             <QTitle sub="Step 6 of 6" title="Anything else to add?"/>
@@ -517,7 +571,7 @@ function PlayerFlow(){
     </div>
   );
 }
- 
+
 // ── APP ───────────────────────────────────────────────────
 function App(){
   var vs=useState("player"); var view=vs[0], setView=vs[1];
@@ -525,11 +579,13 @@ function App(){
   var subS=useState([]); var subs=subS[0], setSubs=subS[1];
   var loadingS=useState(false); var loading=loadingS[0], setLoading=loadingS[1];
   var lastFetchS=useState(null); var lastFetch=lastFetchS[0], setLastFetch=lastFetchS[1];
- 
-  function fetchFromSheet(){
+  var dateS=useState(today()); var selectedDate=dateS[0], setSelectedDate=dateS[1];
+
+  function fetchFromSheet(dateOverride){
     if(!SHEET_URL) return;
+    var d = dateOverride || selectedDate;
     setLoading(true);
-    fetch(SHEET_URL,{method:"GET",redirect:"follow"})
+    fetch(SHEET_URL+"?date="+encodeURIComponent(d),{method:"GET",redirect:"follow"})
       .then(function(r){
         if(!r.ok) throw new Error("HTTP "+r.status);
         return r.text();
@@ -546,7 +602,12 @@ function App(){
         setLoading(false);
       });
   }
- 
+
+  function handleDateChange(d){
+    setSelectedDate(d);
+    fetchFromSheet(d);
+  }
+
   return (
     <div style={{minHeight:"100vh",background:bg}}>
       <nav style={{background:navy,borderBottom:"2px solid "+gold,
@@ -571,14 +632,16 @@ function App(){
         {view==="player"
           ? <PlayerFlow/>
           : (unlocked
-              ? <StaffView subs={subs} loading={loading} lastFetch={lastFetch} onRefresh={fetchFromSheet}/>
+              ? <StaffView subs={subs} loading={loading} lastFetch={lastFetch}
+                  selectedDate={selectedDate} onDateChange={handleDateChange}
+                  onRefresh={function(){fetchFromSheet();}}/>
               : <PinScreen onUnlock={function(){setUnlocked(true);fetchFromSheet();}}/>)
         }
       </div>
     </div>
   );
 }
- 
+
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App,null));
 </script>
 </body>
